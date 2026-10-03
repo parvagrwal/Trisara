@@ -1,0 +1,6 @@
+out/
+cache/
+/logs/
+offchain/logs/
+.env
+*.key
