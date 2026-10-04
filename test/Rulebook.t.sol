@@ -19,11 +19,7 @@ contract RulebookTest is Test {
         rb = new Rulebook(admin, flagger, TIMELOCK);
     }
 
-    function _rule(Rulebook.Action a, uint256 p, uint64 e, bytes32 r)
-        internal
-        pure
-        returns (Rulebook.Rule memory)
-    {
+    function _rule(Rulebook.Action a, uint256 p, uint64 e, bytes32 r) internal pure returns (Rulebook.Rule memory) {
         return Rulebook.Rule({action: a, param: p, expiresAt: e, reasonCode: r});
     }
 
@@ -50,9 +46,7 @@ contract RulebookTest is Test {
     function test_TightenInstant() public {
         vm.startPrank(admin);
         rb.setRule(HIMS, SWAP, _rule(Rulebook.Action.ALLOW, 0, 0, bytes32("OPEN")));
-        rb.setRule(
-            HIMS, SWAP, _rule(Rulebook.Action.HALT, 0, uint64(block.timestamp + 3600), bytes32("WEEKEND"))
-        );
+        rb.setRule(HIMS, SWAP, _rule(Rulebook.Action.HALT, 0, uint64(block.timestamp + 3600), bytes32("WEEKEND")));
         vm.stopPrank();
         (Rulebook.Action a,,) = rb.decision(HIMS, SWAP);
         assertEq(uint256(a), uint256(Rulebook.Action.HALT));
@@ -61,9 +55,7 @@ contract RulebookTest is Test {
     // --- loosening waits: HALT -> ALLOW queues behind the timelock ---
     function test_LoosenQueued() public {
         vm.startPrank(admin);
-        rb.setRule(
-            HIMS, SWAP, _rule(Rulebook.Action.HALT, 0, uint64(block.timestamp + 3600), bytes32("WEEKEND"))
-        );
+        rb.setRule(HIMS, SWAP, _rule(Rulebook.Action.HALT, 0, uint64(block.timestamp + 3600), bytes32("WEEKEND")));
         rb.setRule(HIMS, SWAP, _rule(Rulebook.Action.ALLOW, 0, 0, bytes32("REOPEN")));
         vm.stopPrank();
 
@@ -102,13 +94,9 @@ contract RulebookTest is Test {
     // --- instant tighten cancels a queued loosening ---
     function test_TightenCancelsPendingLoosening() public {
         vm.startPrank(admin);
-        rb.setRule(
-            HIMS, SWAP, _rule(Rulebook.Action.HALT, 0, uint64(block.timestamp + 7200), bytes32("WEEKEND"))
-        );
+        rb.setRule(HIMS, SWAP, _rule(Rulebook.Action.HALT, 0, uint64(block.timestamp + 7200), bytes32("WEEKEND")));
         rb.setRule(HIMS, SWAP, _rule(Rulebook.Action.ALLOW, 0, 0, bytes32("REOPEN"))); // queued
-        rb.setRule(
-            HIMS, SWAP, _rule(Rulebook.Action.HALT, 0, uint64(block.timestamp + 7200), bytes32("STILL_SHUT"))
-        ); // instant tighten
+        rb.setRule(HIMS, SWAP, _rule(Rulebook.Action.HALT, 0, uint64(block.timestamp + 7200), bytes32("STILL_SHUT"))); // instant tighten
         vm.stopPrank();
 
         vm.warp(block.timestamp + TIMELOCK + 1);
@@ -145,9 +133,7 @@ contract RulebookTest is Test {
 
     function test_FlagCannotLoosen() public {
         vm.prank(admin);
-        rb.setRule(
-            HIMS, SWAP, _rule(Rulebook.Action.HALT, 0, uint64(block.timestamp + 3600), bytes32("WEEKEND"))
-        );
+        rb.setRule(HIMS, SWAP, _rule(Rulebook.Action.HALT, 0, uint64(block.timestamp + 3600), bytes32("WEEKEND")));
         vm.prank(flagger);
         vm.expectRevert("flag would loosen");
         rb.flag(HIMS, SWAP, Rulebook.Action.COLLAR, 3600, bytes32("X"));
@@ -202,17 +188,13 @@ contract RulebookTest is Test {
 
         vm.prank(admin);
         vm.expectRevert("halt exceeds maxHalt");
-        rb.setRule(
-            HIMS, SWAP, _rule(Rulebook.Action.HALT, 0, uint64(block.timestamp + 7 hours), bytes32("LONG"))
-        );
+        rb.setRule(HIMS, SWAP, _rule(Rulebook.Action.HALT, 0, uint64(block.timestamp + 7 hours), bytes32("LONG")));
     }
 
     // --- expired venue rules fall back to HALT ---
     function test_RuleExpiry() public {
         vm.prank(admin);
-        rb.setRule(
-            HIMS, SWAP, _rule(Rulebook.Action.CAP, 5000, uint64(block.timestamp + 3600), bytes32("CAP"))
-        );
+        rb.setRule(HIMS, SWAP, _rule(Rulebook.Action.CAP, 5000, uint64(block.timestamp + 3600), bytes32("CAP")));
         vm.warp(block.timestamp + 3601);
         (Rulebook.Action a,, bytes32 reason) = rb.decision(HIMS, SWAP);
         assertEq(uint256(a), uint256(Rulebook.Action.HALT));

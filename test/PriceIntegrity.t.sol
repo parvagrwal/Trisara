@@ -49,10 +49,7 @@ contract PriceIntegrityTest is Test {
         });
     }
 
-    function _stateAt(PriceIntegrity.EvalInputs memory x, uint256 t)
-        internal
-        returns (PriceIntegrity.State)
-    {
+    function _stateAt(PriceIntegrity.EvalInputs memory x, uint256 t) internal returns (PriceIntegrity.State) {
         vm.warp(t);
         (PriceIntegrity.State s,) = pi.evaluate(x);
         return s;

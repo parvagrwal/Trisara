@@ -31,19 +31,11 @@ contract FeedMock is IAggregatorV3 {
         return 1;
     }
 
-    function getRoundData(uint80)
-        external
-        view
-        returns (uint80, int256, uint256, uint256, uint80)
-    {
+    function getRoundData(uint80) external view returns (uint80, int256, uint256, uint256, uint80) {
         return (rid, ans, ts, ts, rid);
     }
 
-    function latestRoundData()
-        external
-        view
-        returns (uint80, int256, uint256, uint256, uint80)
-    {
+    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
         return (rid, ans, ts, ts, rid);
     }
 }
@@ -83,11 +75,7 @@ contract CoreHandler is Test {
             clock,
             AnchorClock.Anchor.EQUITY_US,
             PriceIntegrity.AssetConfig({
-                deviationBps: 200,
-                velocityBps: 500,
-                velocityWindow: 300,
-                maxFreshness: 900,
-                reopenGrace: 900
+                deviationBps: 200, velocityBps: 500, velocityWindow: 300, maxFreshness: 900, reopenGrace: 900
             })
         );
         rb = new Rulebook(address(this), address(this), 24 hours);
@@ -188,21 +176,15 @@ contract CoreHandler is Test {
     function _ghostSet(bytes32 key, Rulebook.Rule memory r) internal {
         GhostRule storage cur = ghostActive[key];
         if (_isLoosening(cur, uint8(r.action), r.param)) {
-            ghostQueued[key] =
-                GhostRule(uint8(r.action), r.param, r.expiresAt, r.reasonCode, true);
+            ghostQueued[key] = GhostRule(uint8(r.action), r.param, r.expiresAt, r.reasonCode, true);
             ghostPending[key] = true;
         } else {
-            ghostActive[key] =
-                GhostRule(uint8(r.action), r.param, r.expiresAt, r.reasonCode, true);
+            ghostActive[key] = GhostRule(uint8(r.action), r.param, r.expiresAt, r.reasonCode, true);
             ghostPending[key] = false;
         }
     }
 
-    function _isLoosening(GhostRule storage cur, uint8 newAction, uint256 newParam)
-        internal
-        view
-        returns (bool)
-    {
+    function _isLoosening(GhostRule storage cur, uint8 newAction, uint256 newParam) internal view returns (bool) {
         if (!cur.exists) return false; // first publish is never a loosening
         if (newAction < cur.action) return true;
         if (newAction > cur.action) return false;
@@ -258,9 +240,7 @@ contract CoreInvariants is Test {
                 (Rulebook.Action action,, uint64 expiresAt,) = rb.rules(keys[i]);
                 if (action == Rulebook.Action.HALT) {
                     assertTrue(expiresAt != 0, "INV-2: halt without expiry");
-                    assertLe(
-                        expiresAt, block.timestamp + rb.MAX_HALT(), "INV-2: halt expiry exceeds maxHalt"
-                    );
+                    assertLe(expiresAt, block.timestamp + rb.MAX_HALT(), "INV-2: halt expiry exceeds maxHalt");
                 }
             }
         }
@@ -320,19 +300,14 @@ contract CoreInvariants is Test {
         if (mustNotBeOpen) assertTrue(s != PriceIntegrity.State.OPEN, "INV-4: fail-closed violated");
     }
 
-    function _evalAt(PriceIntegrity.EvalInputs memory x, uint256 t)
-        internal
-        returns (PriceIntegrity.State s)
-    {
+    function _evalAt(PriceIntegrity.EvalInputs memory x, uint256 t) internal returns (PriceIntegrity.State s) {
         vm.warp(t);
         (s,) = h.pi().evaluate(x);
     }
 
     /// @notice INV-5: exit action classes (repay/cancel/refund/close) can never
     /// be restricted — by admin or by flagger.
-    function testFuzz_INV5_ExitsNeverBlocked(bytes32 asset, uint8 actionSeed, uint256 param, uint64 expiry)
-        public
-    {
+    function testFuzz_INV5_ExitsNeverBlocked(bytes32 asset, uint8 actionSeed, uint256 param, uint64 expiry) public {
         Rulebook rb = h.rb();
         Rulebook.Action action = Rulebook.Action(uint8(bound(uint256(actionSeed), 0, 4)));
 
@@ -366,11 +341,7 @@ contract CoreInvariants is Test {
             h.clock(),
             AnchorClock.Anchor.EQUITY_US,
             PriceIntegrity.AssetConfig({
-                deviationBps: 200,
-                velocityBps: 500,
-                velocityWindow: 300,
-                maxFreshness: 900,
-                reopenGrace: 900
+                deviationBps: 200, velocityBps: 500, velocityWindow: 300, maxFreshness: 900, reopenGrace: 900
             })
         );
         uint256 t = bound(warpSeed, EPOCH - 1 days, EPOCH + 731 days);
@@ -411,8 +382,7 @@ contract CoreInvariants is Test {
             Rulebook.Rule({action: Rulebook.Action.HALT, param: 0, expiresAt: 0, reasonCode: bytes32("X")})
         );
 
-        uint64 badExpiry =
-            uint64(bound(uint256(expirySeed), block.timestamp + rb.MAX_HALT() + 1, type(uint64).max));
+        uint64 badExpiry = uint64(bound(uint256(expirySeed), block.timestamp + rb.MAX_HALT() + 1, type(uint64).max));
         vm.prank(address(h));
         vm.expectRevert("halt exceeds maxHalt");
         rb.setRule(

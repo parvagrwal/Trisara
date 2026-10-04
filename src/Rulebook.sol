@@ -10,8 +10,20 @@ pragma solidity 0.8.24;
 /// With no published rule, decisions fail closed to HALT (the venue must
 /// publish its weekend rule *before* the weekend — that pre-commitment is the product).
 contract Rulebook {
-    enum Action { ALLOW, CAP, COLLAR, DEFER, HALT }
-    enum ActionClass { SWAP, BORROW, LIQUIDATE, SETTLE, EXIT }
+    enum Action {
+        ALLOW,
+        CAP,
+        COLLAR,
+        DEFER,
+        HALT
+    }
+    enum ActionClass {
+        SWAP,
+        BORROW,
+        LIQUIDATE,
+        SETTLE,
+        EXIT
+    }
 
     /// @notice Flags and HALT rules auto-expire within this bound (starting parameter).
     uint256 public constant MAX_HALT = 6 hours;
@@ -52,9 +64,7 @@ contract Rulebook {
     event RuleQueued(bytes32 indexed asset, ActionClass indexed cls, uint64 eta);
     event RuleExecuted(bytes32 indexed asset, ActionClass indexed cls);
     event QueuedCancelled(bytes32 indexed asset, ActionClass indexed cls);
-    event FlagRaised(
-        bytes32 indexed asset, ActionClass indexed cls, Action action, uint64 expiresAt, bytes32 reason
-    );
+    event FlagRaised(bytes32 indexed asset, ActionClass indexed cls, Action action, uint64 expiresAt, bytes32 reason);
 
     constructor(address _venueAdmin, address _flagger, uint256 _timelockDelay) {
         require(_venueAdmin != address(0) && _flagger != address(0), "zero address");
@@ -117,21 +127,13 @@ contract Rulebook {
 
     /// @notice Emergency tighten-only flag. Can never loosen the current rule,
     /// always expires within MAX_HALT, and is rate-limited per key.
-    function flag(bytes32 asset, ActionClass cls, Action action, uint64 durationSecs, bytes32 reason)
-        external
-    {
+    function flag(bytes32 asset, ActionClass cls, Action action, uint64 durationSecs, bytes32 reason) external {
         require(msg.sender == flagger, "not flagger");
         require(!_isExitClass(cls), "exits always open"); // INV-5
-        require(
-            action == Action.HALT || action == Action.COLLAR || action == Action.DEFER,
-            "tighten-only actions"
-        );
+        require(action == Action.HALT || action == Action.COLLAR || action == Action.DEFER, "tighten-only actions");
         require(durationSecs > 0 && durationSecs <= MAX_HALT, "bad duration");
         bytes32 key = ruleKey(asset, cls);
-        require(
-            lastFlagAt[key] == 0 || block.timestamp >= lastFlagAt[key] + FLAG_COOLDOWN,
-            "rate-limited"
-        );
+        require(lastFlagAt[key] == 0 || block.timestamp >= lastFlagAt[key] + FLAG_COOLDOWN, "rate-limited");
         require(_rank(action) >= _currentRank(key), "flag would loosen");
 
         uint64 expiresAt = uint64(block.timestamp) + durationSecs;

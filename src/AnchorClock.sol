@@ -24,12 +24,9 @@ contract AnchorClock {
     // NYSE holidays 2026: Jan 1, Jan 19, Feb 16, Apr 3, May 25, Jun 19, Jul 3(obs),
     //   Sep 7, Nov 26, Dec 25. 2027: Jan 1, Jan 18, Feb 15, Mar 26, May 31,
     //   Jun 18(obs), Jul 5(obs), Sep 6, Nov 25, Dec 24(obs).
-    uint256 internal constant NYSE_HOL_0 =
-        904625697166532776758909032996162005138031182332247026639532591706599063553;
-    uint256 internal constant NYSE_HOL_1 =
-        12554203470796197490839945450350209750792850601006279426048;
-    uint256 internal constant NYSE_HOL_2 =
-        1645504560386197123886746899274047094584554689329861376002228232;
+    uint256 internal constant NYSE_HOL_0 = 904625697166532776758909032996162005138031182332247026639532591706599063553;
+    uint256 internal constant NYSE_HOL_1 = 12554203470796197490839945450350209750792850601006279426048;
+    uint256 internal constant NYSE_HOL_2 = 1645504560386197123886746899274047094584554689329861376002228232;
     // NYSE early closes (session ends 13:00 ET): 2026-11-27, 2026-12-24, 2027-11-26.
     uint256 internal constant NYSE_EARLY_0 = 0;
     uint256 internal constant NYSE_EARLY_1 = 2535301219345924734471987265536;
@@ -37,11 +34,9 @@ contract AnchorClock {
     // Fed holidays 2026: Jan 1, Jan 19, Feb 16, May 25, Jun 19, Jul 3(obs), Sep 7,
     //   Oct 12, Nov 11, Nov 26, Dec 25. 2027: Jan 1, Jan 18, Feb 15, May 31,
     //   Jun 18(obs), Jul 5(obs), Sep 6, Oct 11, Nov 11, Nov 25, Dec 24(obs).
-    uint256 internal constant FED_HOL_0 =
-        904625697166532776758909032996162005138031182327295266482391070607002566657;
+    uint256 internal constant FED_HOL_0 = 904625697166532776758909032996162005138031182327295266482391070607002566657;
     uint256 internal constant FED_HOL_1 = 22835963168366603934876918588427942454630547456;
-    uint256 internal constant FED_HOL_2 =
-        1645504560386384196096412367133508926489788997455879868029861896;
+    uint256 internal constant FED_HOL_2 = 1645504560386384196096412367133508926489788997455879868029861896;
 
     /// @notice True iff the anchor is in a live session at `timestamp`.
     function isOpen(Anchor anchor, uint256 timestamp) public pure returns (bool) {
@@ -58,11 +53,7 @@ contract AnchorClock {
 
     /// @notice Chainlink marketStatus input. Tighten-only: it can flip an
     /// open market to closed, never a closed market to open.
-    function isOpen(Anchor anchor, uint256 timestamp, bool marketStatusOpen)
-        external
-        pure
-        returns (bool)
-    {
+    function isOpen(Anchor anchor, uint256 timestamp, bool marketStatusOpen) external pure returns (bool) {
         return marketStatusOpen && isOpen(anchor, timestamp);
     }
 

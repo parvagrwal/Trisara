@@ -130,8 +130,7 @@ contract QuorumFlaggerTest is Test {
         qf.approve(id);
 
         // Rulebook state: flag exists, expires in ~1h.
-        (Rulebook.Action fa, uint64 expiresAt,, bool exists) =
-            rb.flags(rb.ruleKey(HIMS, SWAP));
+        (Rulebook.Action fa, uint64 expiresAt,, bool exists) = rb.flags(rb.ruleKey(HIMS, SWAP));
         assertTrue(exists);
         assertEq(uint256(fa), uint256(Rulebook.Action.HALT));
         assertLe(expiresAt - block.timestamp, 3600);

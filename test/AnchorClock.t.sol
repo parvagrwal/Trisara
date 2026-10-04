@@ -86,18 +86,9 @@ contract AnchorClockTest is Test {
         uint256 openT = 1791385200; // calendar says OPEN
         uint256 shutT = 1791633600; // calendar says CLOSED (Saturday)
 
-        assertFalse(
-            clock.isOpen(EQUITY, openT, false),
-            "marketStatus=false must close a calendar-open market"
-        );
-        assertTrue(
-            clock.isOpen(EQUITY, openT, true),
-            "marketStatus=true keeps a calendar-open market open"
-        );
-        assertFalse(
-            clock.isOpen(EQUITY, shutT, true),
-            "marketStatus=true must NOT open a calendar-closed market"
-        );
+        assertFalse(clock.isOpen(EQUITY, openT, false), "marketStatus=false must close a calendar-open market");
+        assertTrue(clock.isOpen(EQUITY, openT, true), "marketStatus=true keeps a calendar-open market open");
+        assertFalse(clock.isOpen(EQUITY, shutT, true), "marketStatus=true must NOT open a calendar-closed market");
     }
 
     // --- INV-4: outside the known calendar, fail closed ---

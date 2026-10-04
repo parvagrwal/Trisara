@@ -20,21 +20,23 @@ contract MockFeed is IAggregatorV3 {
         rid++;
     }
 
-    function decimals() external pure returns (uint8) { return 8; }
-    function description() external pure returns (string memory) { return "MOCK / USD"; }
-    function version() external pure returns (uint256) { return 1; }
-    function getRoundData(uint80)
-        external
-        view
-        returns (uint80, int256, uint256, uint256, uint80)
-    {
+    function decimals() external pure returns (uint8) {
+        return 8;
+    }
+
+    function description() external pure returns (string memory) {
+        return "MOCK / USD";
+    }
+
+    function version() external pure returns (uint256) {
+        return 1;
+    }
+
+    function getRoundData(uint80) external view returns (uint80, int256, uint256, uint256, uint80) {
         return (rid, ans, st, upd, rid);
     }
-    function latestRoundData()
-        external
-        view
-        returns (uint80, int256, uint256, uint256, uint80)
-    {
+
+    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
         return (rid, ans, st, upd, rid);
     }
 }
@@ -63,11 +65,7 @@ contract GuardedFeedTest is Test {
             clock,
             AnchorClock.Anchor.EQUITY_US,
             PriceIntegrity.AssetConfig({
-                deviationBps: 200,
-                velocityBps: 500,
-                velocityWindow: 300,
-                maxFreshness: 900,
-                reopenGrace: 900
+                deviationBps: 200, velocityBps: 500, velocityWindow: 300, maxFreshness: 900, reopenGrace: 900
             })
         );
         gf = new GuardedFeed(address(feed), address(pi), keeper, 100); // ±1% collar

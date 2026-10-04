@@ -9,21 +9,23 @@ import "../src/GuardedFeed.sol";
 
 /// @notice Minimal feed stand-in so the gate can deploy GuardedFeed.
 contract MockFeedForGate is IAggregatorV3 {
-    function decimals() external pure returns (uint8) { return 8; }
-    function description() external pure returns (string memory) { return "MOCK"; }
-    function version() external pure returns (uint256) { return 1; }
-    function getRoundData(uint80)
-        external
-        view
-        returns (uint80, int256, uint256, uint256, uint80)
-    {
+    function decimals() external pure returns (uint8) {
+        return 8;
+    }
+
+    function description() external pure returns (string memory) {
+        return "MOCK";
+    }
+
+    function version() external pure returns (uint256) {
+        return 1;
+    }
+
+    function getRoundData(uint80) external view returns (uint80, int256, uint256, uint256, uint80) {
         return (1, int256(100 * 1e8), block.timestamp, block.timestamp, 1);
     }
-    function latestRoundData()
-        external
-        view
-        returns (uint80, int256, uint256, uint256, uint80)
-    {
+
+    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
         return (1, int256(100 * 1e8), block.timestamp, block.timestamp, 1);
     }
 }
@@ -58,11 +60,7 @@ contract ContractLimitsTest is Test {
             clock,
             AnchorClock.Anchor.EQUITY_US,
             PriceIntegrity.AssetConfig({
-                deviationBps: 200,
-                velocityBps: 500,
-                velocityWindow: 300,
-                maxFreshness: 900,
-                reopenGrace: 900
+                deviationBps: 200, velocityBps: 500, velocityWindow: 300, maxFreshness: 900, reopenGrace: 900
             })
         );
         _checkSize(address(pi), "PriceIntegrity");

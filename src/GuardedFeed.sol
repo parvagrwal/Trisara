@@ -107,13 +107,7 @@ contract GuardedFeed is IAggregatorV3 {
         }
         if (state == PriceIntegrity.State.CLOSED || state == PriceIntegrity.State.REOPENING) {
             require(hasOpenPrint && lastOpenPrice != 0, "no open print yet");
-            return (
-                lastOpenRoundId,
-                int256(lastOpenPrice),
-                lastOpenStartedAt,
-                lastOpenUpdatedAt,
-                lastOpenRoundId
-            );
+            return (lastOpenRoundId, int256(lastOpenPrice), lastOpenStartedAt, lastOpenUpdatedAt, lastOpenRoundId);
         }
         revert("guarded feed halted"); // STALE, HALTED, CHAIN_DEGRADED
     }
@@ -144,11 +138,7 @@ contract GuardedFeed is IAggregatorV3 {
 
     // --- internals ---
 
-    function _inputs(Observation memory o, int256 feedAns)
-        internal
-    pure
-        returns (PriceIntegrity.EvalInputs memory)
-    {
+    function _inputs(Observation memory o, int256 feedAns) internal pure returns (PriceIntegrity.EvalInputs memory) {
         return PriceIntegrity.EvalInputs({
             refPrice: o.refPrice,
             refAt: o.observedAt,

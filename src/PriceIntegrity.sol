@@ -14,7 +14,15 @@ import "./AnchorClock.sol";
 /// freshness (open sessions) -> velocity -> deviation -> OPEN.
 /// Pure view of its inputs (INV-6): anyone can replay an evaluation offchain.
 contract PriceIntegrity {
-    enum State { OPEN, CLOSED, REOPENING, STALE, DISLOCATED, HALTED, CHAIN_DEGRADED }
+    enum State {
+        OPEN,
+        CLOSED,
+        REOPENING,
+        STALE,
+        DISLOCATED,
+        HALTED,
+        CHAIN_DEGRADED
+    }
 
     struct AssetConfig {
         uint256 deviationBps; // feed-vs-reference trip, bps
@@ -98,13 +106,12 @@ contract PriceIntegrity {
     // --- internals ---
 
     /// @notice Absolute move from a to b, in basis points of a.
-/// Capped: beyond type(uint256).max / 10_000 the true bps value exceeds any
-/// realistic threshold (max 10_000), so it trips every check without overflowing.
-function _bpsMove(uint256 a, uint256 b) internal pure returns (uint256) {
-    if (a == b) return 0;
-    uint256 diff = a > b ? a - b : b - a;
-    if (diff > type(uint256).max / 10_000) return type(uint256).max;
-    return (diff * 10_000) / a;
-}
-
+    /// Capped: beyond type(uint256).max / 10_000 the true bps value exceeds any
+    /// realistic threshold (max 10_000), so it trips every check without overflowing.
+    function _bpsMove(uint256 a, uint256 b) internal pure returns (uint256) {
+        if (a == b) return 0;
+        uint256 diff = a > b ? a - b : b - a;
+        if (diff > type(uint256).max / 10_000) return type(uint256).max;
+        return (diff * 10_000) / a;
+    }
 }

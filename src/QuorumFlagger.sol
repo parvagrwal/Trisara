@@ -68,8 +68,7 @@ contract QuorumFlagger {
     ) external returns (uint256 id) {
         require(isMember[msg.sender], "not member");
         require(
-            action == Rulebook.Action.HALT || action == Rulebook.Action.COLLAR
-                || action == Rulebook.Action.DEFER,
+            action == Rulebook.Action.HALT || action == Rulebook.Action.COLLAR || action == Rulebook.Action.DEFER,
             "tighten-only"
         );
         require(duration > 0 && duration <= rulebook.MAX_HALT(), "bad duration");
