@@ -4,3 +4,4 @@ cache/
 offchain/logs/
 .env
 *.key
+signal/
