@@ -22,6 +22,10 @@ contract MockERC20T {
         return dec;
     }
 
+    function setDec(uint8 d) external {
+        dec = d;
+    }
+
     function approve(address sp, uint256 amount) external returns (bool) {
         allowance[msg.sender][sp] = amount;
         return true;
@@ -276,6 +280,26 @@ contract ConsumerIntegration is Test {
         l.borrow(350 * 1e18); // 35%: ok
         vm.stopPrank();
         assertEq(debtT.balanceOf(user), 350 * 1e18);
+    }
+
+    function testLender_sixDecimalDebtScalesCorrectly() public {
+        // Regression: 6-decimal debt token (like rUSDG) must not get an
+        // 18-decimal borrow cap. 10 coll @ 100 = 1000 value; 50% = 500 units.
+        MockERC20T debt6 = new MockERC20T();
+        debt6.setDec(6);
+        debt6.mint(address(this), 1_000_000 * 1e6);
+        GuardedLender l = new GuardedLender(
+            address(coll), address(debt6), address(clock), 0, address(venue), address(refFeed), 15 minutes, 0
+        );
+        debt6.transfer(address(l), 100_000 * 1e6);
+        vm.startPrank(user);
+        coll.approve(address(l), type(uint256).max);
+        l.depositCollateral(10 * 1e18);
+        l.borrow(500 * 1e6); // exactly 50%: ok
+        vm.expectRevert("exceeds LTV");
+        l.borrow(1); // one unit more: revert
+        vm.stopPrank();
+        assertEq(debt6.balanceOf(user), 500 * 1e6);
     }
 
     function testLender_repayNeverBlocked() public {

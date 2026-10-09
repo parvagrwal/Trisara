@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import "./GuardedSwapRouter.sol"; // FeedReader, IERC20T
+import "../ReentrancyGuard.sol";
 
 interface IAnchorClock {
     function isOpen(uint8 anchor, uint256 timestamp) external pure returns (bool);
@@ -16,13 +17,15 @@ interface IAnchorClock {
 ///     a healthy account liquidatable), only while OPEN, and only after the
 ///     reopening grace window.
 ///   - INV-5: repay() and withdrawCollateral() (when debt is zero) never revert.
-contract GuardedLender {
+contract GuardedLender is ReentrancyGuard {
     IERC20T public immutable collateralToken;
     IERC20T public immutable debtToken;
     IAnchorClock public immutable clock;
     uint8 public immutable anchor; // AnchorClock.Anchor as uint8
     address public immutable venueFeed; // guarded venue price (collateral valuation)
     address public immutable referenceFeed; // refFeed adapter (liquidation trigger ONLY)
+    uint8 public immutable collDec;
+    uint8 public immutable debtDec;
 
     uint256 public constant OPEN_LTV_BPS = 5_000; // 50%
     uint256 public constant CLOSED_LTV_BPS = 3_500; // 35%
@@ -63,6 +66,8 @@ contract GuardedLender {
         referenceFeed = _referenceFeed;
         graceWindow = _graceWindow;
         maxTotalDebt = _maxTotalDebt;
+        collDec = collateralToken.decimals();
+        debtDec = debtToken.decimals();
     }
 
     /// @notice Advance the session tracker. Anyone can call; state comes from the clock.
@@ -79,15 +84,14 @@ contract GuardedLender {
         return clock.isOpen(anchor, block.timestamp) ? OPEN_LTV_BPS : CLOSED_LTV_BPS;
     }
 
-    /// @notice Collateral value in debt-token WAD (both 18-dec normalized here;
-    /// pass 18-decimal tokens or scale at integration).
-    function _collateralValue(address user) internal view returns (uint256 valueWad, bool ok) {
-        (uint256 price,, bool feedOk) = FeedReader.readFeed(venueFeed);
-        if (!feedOk || price == 0) return (0, false);
-        return ((collateral[user] * price) / 1e18, true);
+    /// @notice Collateral value in DEBT-TOKEN units (debtDec decimals).
+    /// The feed reports debt-per-collateral as 18-dec WAD; this scales by the
+    /// actual token decimals so non-18-decimal debt tokens work correctly.
+    function _debtValue(uint256 collAmount, uint256 priceWad) internal view returns (uint256) {
+        return (((collAmount * priceWad) / 1e18) * (10 ** debtDec)) / (10 ** collDec);
     }
 
-    function depositCollateral(uint256 amount) external {
+    function depositCollateral(uint256 amount) external nonReentrant {
         require(amount > 0, "zero amount");
         require(collateralToken.transferFrom(msg.sender, address(this), amount), "deposit failed");
         collateral[msg.sender] += amount;
@@ -95,12 +99,12 @@ contract GuardedLender {
     }
 
     /// @notice Borrow against collateral at the session LTV.
-    function borrow(uint256 amount) external {
+    function borrow(uint256 amount) external nonReentrant {
         require(amount > 0, "zero amount");
         if (maxTotalDebt != 0) require(totalDebt + amount <= maxTotalDebt, "debt cap");
-        (uint256 valueWad, bool ok) = _collateralValue(msg.sender);
-        require(ok, "no price");
-        uint256 maxBorrow = (valueWad * _maxLtvBps()) / 10_000;
+        (uint256 price,, bool ok) = FeedReader.readFeed(venueFeed);
+        require(ok && price > 0, "no price");
+        uint256 maxBorrow = (_debtValue(collateral[msg.sender], price) * _maxLtvBps()) / 10_000;
         require(debt[msg.sender] + amount <= maxBorrow, "exceeds LTV");
         debt[msg.sender] += amount;
         totalDebt += amount;
@@ -109,7 +113,7 @@ contract GuardedLender {
     }
 
     /// @notice INV-5: repay is never blocked, in any state.
-    function repay(uint256 amount) external {
+    function repay(uint256 amount) external nonReentrant {
         require(amount > 0, "zero amount");
         uint256 owed = debt[msg.sender];
         require(owed > 0, "no debt");
@@ -122,14 +126,13 @@ contract GuardedLender {
 
     /// @notice INV-5: withdrawing with zero debt never reverts. Otherwise the
     /// remaining position must stay within the session LTV.
-    function withdrawCollateral(uint256 amount) external {
+    function withdrawCollateral(uint256 amount) external nonReentrant {
         require(amount > 0, "zero amount");
         require(collateral[msg.sender] >= amount, "insufficient");
         if (debt[msg.sender] > 0) {
-            (uint256 valueWad, bool ok) = _collateralValue(msg.sender);
-            require(ok, "no price");
-            (uint256 price,,) = FeedReader.readFeed(venueFeed);
-            uint256 newValue = valueWad - ((amount * price) / 1e18);
+            (uint256 price,, bool ok) = FeedReader.readFeed(venueFeed);
+            require(ok && price > 0, "no price");
+            uint256 newValue = _debtValue(collateral[msg.sender], price) - _debtValue(amount, price);
             require(debt[msg.sender] * 10_000 <= newValue * _maxLtvBps(), "would breach LTV");
         }
         collateral[msg.sender] -= amount;
@@ -140,15 +143,15 @@ contract GuardedLender {
     /// @notice Liquidate an undercollateralized account. Trigger price comes
     /// ONLY from the refFeed adapter (INV-7); only while the anchor is OPEN
     /// and past the reopening grace window.
-    function liquidate(address user) external {
+    function liquidate(address user) external nonReentrant {
         require(clock.isOpen(anchor, block.timestamp), "not open");
         require(reopenedAt == 0 || block.timestamp >= reopenedAt + graceWindow, "in grace");
         (uint256 refPrice,, bool ok) = FeedReader.readFeed(referenceFeed);
         require(ok && refPrice > 0, "no refFeed price");
-        uint256 valueWad = (collateral[user] * refPrice) / 1e18;
+        uint256 valueDebt = _debtValue(collateral[user], refPrice);
         require(debt[user] > 0, "no debt");
         // Undercollateralized against the CURRENT (open-session) LTV on refFeed price.
-        require(debt[user] * 10_000 > valueWad * OPEN_LTV_BPS, "healthy on refFeed");
+        require(debt[user] * 10_000 > valueDebt * OPEN_LTV_BPS, "healthy on refFeed");
         uint256 debtCovered = debt[user];
         uint256 collSeized = collateral[user];
         debt[user] = 0;
@@ -164,10 +167,12 @@ contract GuardedLender {
 /// @notice The unprotected twin: fixed 60% LTV, liquidates on the VENUE price
 /// immediately, no grace, no session awareness. Exists for the A/B demo —
 /// this is the lender that liquidates on the squeezed print.
-contract UnguardedLender {
+contract UnguardedLender is ReentrancyGuard {
     IERC20T public immutable collateralToken;
     IERC20T public immutable debtToken;
     address public immutable venueFeed;
+    uint8 public immutable collDec;
+    uint8 public immutable debtDec;
 
     uint256 public constant LTV_BPS = 6_000; // 60%, always
 
@@ -180,23 +185,29 @@ contract UnguardedLender {
         collateralToken = IERC20T(_collateralToken);
         debtToken = IERC20T(_debtToken);
         venueFeed = _venueFeed;
+        collDec = collateralToken.decimals();
+        debtDec = debtToken.decimals();
     }
 
-    function depositCollateral(uint256 amount) external {
+    function _debtValue(uint256 collAmount, uint256 priceWad) internal view returns (uint256) {
+        return (((collAmount * priceWad) / 1e18) * (10 ** debtDec)) / (10 ** collDec);
+    }
+
+    function depositCollateral(uint256 amount) external nonReentrant {
         require(collateralToken.transferFrom(msg.sender, address(this), amount), "deposit failed");
         collateral[msg.sender] += amount;
     }
 
-    function borrow(uint256 amount) external {
+    function borrow(uint256 amount) external nonReentrant {
         (uint256 price,, bool ok) = FeedReader.readFeed(venueFeed);
-        require(ok, "no price");
-        uint256 maxBorrow = (collateral[msg.sender] * price * LTV_BPS) / (1e18 * 10_000);
+        require(ok && price > 0, "no price");
+        uint256 maxBorrow = (_debtValue(collateral[msg.sender], price) * LTV_BPS) / 10_000;
         require(debt[msg.sender] + amount <= maxBorrow, "exceeds LTV");
         debt[msg.sender] += amount;
         require(debtToken.transfer(msg.sender, amount), "payout failed");
     }
 
-    function repay(uint256 amount) external {
+    function repay(uint256 amount) external nonReentrant {
         uint256 owed = debt[msg.sender];
         uint256 pay = amount > owed ? owed : amount;
         require(debtToken.transferFrom(msg.sender, address(this), pay), "repay failed");
@@ -204,11 +215,11 @@ contract UnguardedLender {
     }
 
     /// @notice Liquidates on the venue print immediately. No grace, no refFeed check.
-    function liquidate(address user) external {
+    function liquidate(address user) external nonReentrant {
         (uint256 price,, bool ok) = FeedReader.readFeed(venueFeed);
-        require(ok, "no price");
-        uint256 valueWad = (collateral[user] * price) / 1e18;
-        require(debt[user] * 10_000 > valueWad * LTV_BPS, "healthy");
+        require(ok && price > 0, "no price");
+        uint256 valueDebt = _debtValue(collateral[user], price);
+        require(debt[user] * 10_000 > valueDebt * LTV_BPS, "healthy");
         uint256 debtCovered = debt[user];
         uint256 collSeized = collateral[user];
         debt[user] = 0;

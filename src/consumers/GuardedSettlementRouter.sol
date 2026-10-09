@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import "./GuardedSwapRouter.sol"; // FeedReader, IERC20T
 import "./GuardedLender.sol"; // IAnchorClock
+import "../ReentrancyGuard.sol";
 
 interface ITip403Pol {
     function isAuthorized(address account) external view returns (bool);
@@ -16,7 +17,7 @@ interface ITip403Pol {
 ///     arb the peg back).
 ///   - TIP-403-blocked payees route to refundable COMPLIANCE_HOLD escrow with
 ///     a reason code — zero stuck funds; claimRefund() anytime (INV-5).
-contract GuardedSettlementRouter {
+contract GuardedSettlementRouter is ReentrancyGuard {
     mapping(address => bool) public accepted;
     address public immutable pegAdapter; // TempoStableAdapter for the settlement token
     IAnchorClock public immutable clock;
@@ -69,7 +70,7 @@ contract GuardedSettlementRouter {
     }
 
     /// @notice Settle `amount` of `token` to `payee` against `invoiceId`.
-    function settle(address token, address payee, uint256 amount, bytes32 invoiceId) external {
+    function settle(address token, address payee, uint256 amount, bytes32 invoiceId) external nonReentrant {
         require(accepted[token], "token not accepted");
         require(payee != address(0) && amount > 0, "bad params");
         require(IERC20T(token).transferFrom(msg.sender, address(this), amount), "pull failed");
@@ -91,9 +92,16 @@ contract GuardedSettlementRouter {
         }
 
         // 2. Peg: while the Fed anchor is CLOSED, a broken peg halts at-par acceptance.
+        //    Broken = adapter reports !ok, OR price deviates beyond pegToleranceBps
+        //    from $1.00 (the tolerance is enforced here, not just stored).
         if (!clock.isOpen(fedAnchor, block.timestamp)) {
-            (,, bool pegOk) = FeedReader.readFeed(pegAdapter);
-            if (!pegOk) {
+            (uint256 pegPrice,, bool pegOk) = FeedReader.readFeed(pegAdapter);
+            bool broken = !pegOk;
+            if (pegOk && pegPrice > 0) {
+                uint256 dev = pegPrice > 1e18 ? pegPrice - 1e18 : 1e18 - pegPrice;
+                broken = dev * 10_000 > pegToleranceBps * 1e18;
+            }
+            if (broken) {
                 uint256 id = ++nextHoldId;
                 holds[id] = Hold({
                     payer: msg.sender,
@@ -115,7 +123,7 @@ contract GuardedSettlementRouter {
     }
 
     /// @notice Keeper releases a hold once compliance/peg clears.
-    function releaseHold(uint256 id) external {
+    function releaseHold(uint256 id) external nonReentrant {
         require(msg.sender == keeper, "not keeper");
         Hold storage h = holds[id];
         require(!h.released && !h.refunded, "closed");
@@ -125,7 +133,7 @@ contract GuardedSettlementRouter {
     }
 
     /// @notice INV-5: refunds are never blocked, in any state.
-    function claimRefund(uint256 id) external {
+    function claimRefund(uint256 id) external nonReentrant {
         Hold storage h = holds[id];
         require(h.payer == msg.sender, "not payer");
         require(!h.released && !h.refunded, "closed");
@@ -165,7 +173,7 @@ contract UnguardedSettlementRouter {
 /// fees with an invoice memo. The native transferWithMemo selector is
 /// unconfirmed (S7 fallback), so settlement is a standard ERC-20 transfer and
 /// the memo lives in the FeeReceipt event. Treasury is set at construction.
-contract ProtectionBilling {
+contract ProtectionBilling is ReentrancyGuard {
     IERC20T public immutable feeToken;
     address public immutable treasury;
     address public immutable admin;
@@ -180,7 +188,7 @@ contract ProtectionBilling {
     }
 
     /// @notice Pay a protection fee. Memo is arbitrary bytes (invoice reference).
-    function payFee(bytes32 invoiceId, uint256 amount, bytes calldata memo) external {
+    function payFee(bytes32 invoiceId, uint256 amount, bytes calldata memo) external nonReentrant {
         require(amount > 0, "zero amount");
         require(feeToken.transferFrom(msg.sender, treasury, amount), "fee transfer failed");
         emit FeeReceipt(invoiceId, msg.sender, amount, memo);

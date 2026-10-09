@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import "../ReentrancyGuard.sol";
+
 /// @notice Shared helpers for consumers: decode any adapter's `read()`
 /// (Reading struct ABI-encodes as a tuple) without importing Day-3 code.
 library FeedReader {
@@ -35,7 +37,7 @@ interface IAggV3 {
 ///   - Price outside collar -> DEFER escrow: claimRefund() anytime (INV-5),
 ///     executeDeferred() once the price is back inside the band.
 ///   - Uniswap-style "swap at any price" is the UnguardedSwapRouter twin.
-contract GuardedSwapRouter {
+contract GuardedSwapRouter is ReentrancyGuard {
     using FeedReader for address;
 
     IAggV3 public immutable guardedFeed;
@@ -103,7 +105,7 @@ contract GuardedSwapRouter {
 
     /// @notice Swap tokenIn for tokenOut at the guarded price.
     /// Returns (id, amountOut): id != 0 means DEFERRED (escrowed).
-    function swap(uint256 amountIn) external returns (uint256 id, uint256 amountOut) {
+    function swap(uint256 amountIn) external nonReentrant returns (uint256 id, uint256 amountOut) {
         require(amountIn > 0, "zero amount");
         require(tokenIn.transferFrom(msg.sender, address(this), amountIn), "pull failed");
 
@@ -136,7 +138,7 @@ contract GuardedSwapRouter {
 
     /// @notice Execute a deferred swap at the current guarded price.
     /// Reverts if still outside the collar; use claimRefund instead.
-    function executeDeferred(uint256 id) external {
+    function executeDeferred(uint256 id) external nonReentrant {
         Deferred storage d = deferred[id];
         require(d.user == msg.sender, "not owner");
         require(!d.executed && !d.refunded, "closed");
@@ -149,7 +151,7 @@ contract GuardedSwapRouter {
     }
 
     /// @notice INV-5: refunds are never blocked, in any state.
-    function claimRefund(uint256 id) external {
+    function claimRefund(uint256 id) external nonReentrant {
         Deferred storage d = deferred[id];
         require(d.user == msg.sender, "not owner");
         require(!d.executed && !d.refunded, "closed");
@@ -186,7 +188,7 @@ contract GuardedSwapRouter {
 /// @title UnguardedSwapRouter
 /// @notice The unprotected twin: swaps at whatever the raw feed prints, no
 /// collar, no refund path. Exists for the A/B demo (guarded vs unguarded).
-contract UnguardedSwapRouter {
+contract UnguardedSwapRouter is ReentrancyGuard {
     IAggV3 public immutable rawFeed;
     IERC20T public immutable tokenIn;
     IERC20T public immutable tokenOut;
@@ -211,7 +213,7 @@ contract UnguardedSwapRouter {
     }
 
     /// @notice Swap at the raw print. No collar, no refund, no questions.
-    function swap(uint256 amountIn, uint256 minOut) external returns (uint256 amountOut) {
+    function swap(uint256 amountIn, uint256 minOut) external nonReentrant returns (uint256 amountOut) {
         require(amountIn > 0, "zero amount");
         require(tokenIn.transferFrom(msg.sender, address(this), amountIn), "pull failed");
         (, int256 ans,,,) = rawFeed.latestRoundData();
