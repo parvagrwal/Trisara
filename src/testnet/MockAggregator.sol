@@ -33,11 +33,7 @@ contract MockAggregator {
         owner = n;
     }
 
-    function latestRoundData()
-        external
-        view
-        returns (uint80, int256, uint256, uint256, uint80)
-    {
+    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
         return (roundId, answer, block.timestamp, updatedAt, roundId);
     }
 }
