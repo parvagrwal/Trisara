@@ -44,12 +44,33 @@ FEEDS = {
 }
 
 RH_RPCS = ["https://rpc.mainnet.chain.robinhood.com"]
-# Testnet contracts: the session clock and rulebook live here.
-# Prices come from mainnet feeds (real prints); clock + rules from testnet
-# (same bytecode that would run on mainnet).
-TESTNET_RPC = "https://rpc.testnet.chain.robinhood.com"
-ANCHOR_CLOCK = "0x7998C5B332B843da2BcCc2088eA7487C92C7f1c6"
-RULEBOOK = "0x2f8c1823bD51A71873b00eB4bc66BA6Cf76634cC"
+# Per-chain testnet contracts: the session clock and rulebook live on each.
+# Prices come from mainnet feeds (real prints, same stocks on every chain);
+# clock + rules are read per-chain from testnet (same bytecode as mainnet).
+CHAINS = {
+    "46630": {
+        "name": "Robinhood",
+        "rpc": "https://rpc.testnet.chain.robinhood.com",
+        "clock": "0x7998C5B332B843da2BcCc2088eA7487C92C7f1c6",
+        "rulebook": "0x2f8c1823bD51A71873b00eB4bc66BA6Cf76634cC",
+    },
+    "998": {
+        "name": "HyperEVM",
+        "rpc": "https://rpc.hyperliquid-testnet.xyz/evm",
+        "clock": "0xC2529BD7e5C8038516908189A142070953b7ad2e",
+        "rulebook": "0x9E66204Fd16238102D0D9c5160D3E02Ea3f5558b",
+    },
+    "42431": {
+        "name": "Tempo",
+        "rpc": "https://rpc.testnet.tempo.xyz",
+        "clock": "0x7F5C6E3eAACD95b3acDEC32Ab47d89887ceE74dA",
+        "rulebook": "0x713420180cec1E1EF394fb9e2606e0bd14764014",
+    },
+}
+# Backwards compat for single-chain callers
+TESTNET_RPC = CHAINS["46630"]["rpc"]
+ANCHOR_CLOCK = CHAINS["46630"]["clock"]
+RULEBOOK = CHAINS["46630"]["rulebook"]
 
 INTERVAL_SEC = 60
 DECIMALS = 8
@@ -115,26 +136,28 @@ def _pad_addr(a):
     return a[2:].lower().rjust(64, '0')
 
 
-def chain_is_open(now_ts):
-    """Read AnchorClock.isOpen(EQUITY_US, now) from testnet. Falls back to
-    the Python NYSE-hours calc if the RPC call fails."""
+def chain_is_open(now_ts, chain_id="46630"):
+    """Read AnchorClock.isOpen(EQUITY_US, now) from the chain's testnet.
+    Falls back to the Python NYSE-hours calc if the RPC call fails."""
+    cfg = CHAINS[chain_id]
     try:
         data = IS_OPEN_SIG + _pad_u256(ANCHOR_EQUITY_US) + _pad_u256(now_ts)
-        resp = rpc_call(TESTNET_RPC, "eth_call",
-                        [{"to": ANCHOR_CLOCK, "data": data}, "latest"])
+        resp = rpc_call(cfg["rpc"], "eth_call",
+                        [{"to": cfg["clock"], "data": data}, "latest"])
         raw = resp.get("result") or ""
         return int(raw, 16) == 1
     except Exception:
         return None
 
 
-def chain_decision():
-    """Read Rulebook.decision(wildcard, SWAP) from testnet.
+def chain_decision(chain_id="46630"):
+    """Read Rulebook.decision(wildcard, SWAP) from the chain's testnet.
     Returns (action_name, param, reason) or None on failure."""
+    cfg = CHAINS[chain_id]
     try:
         data = DECISION_SIG + WILDCARD_ASSET[2:] + _pad_u256(CLS_SWAP)
-        resp = rpc_call(TESTNET_RPC, "eth_call",
-                        [{"to": RULEBOOK, "data": data}, "latest"])
+        resp = rpc_call(cfg["rpc"], "eth_call",
+                        [{"to": cfg["rulebook"], "data": data}, "latest"])
         raw = (resp.get("result") or "")[2:]
         if len(raw) < 192:
             return None
@@ -181,20 +204,22 @@ def next_open(now_utc=None):
 #   OPEN + stale >= 15min -> HALT   / STALE_FEED   (fail closed)
 #   feed read error       -> HALT   / FEED_UNAVAILABLE (fail closed)
 
-def build_signal(sym, feed):
+def build_signal(sym, feed, chain_id="46630"):
+    cfg = CHAINS[chain_id]
     now = datetime.now(timezone.utc)
     now_ts = int(now.timestamp())
-    # Session state from the onchain AnchorClock (full holiday bitmaps).
-    onchain_open = chain_is_open(now_ts)
+    # Session state from the chain's onchain AnchorClock (full holiday bitmaps).
+    onchain_open = chain_is_open(now_ts, chain_id)
     if onchain_open is None:
         state = anchor_state(now)  # RPC failed: pilot fallback
         clock_src = "pilot-fallback"
     else:
         state = "OPEN" if onchain_open else "CLOSED"
         clock_src = "onchain"
-    # Rule from the onchain Rulebook (Step 0 published Day 6).
-    onchain_rule = chain_decision()
-    base = {"feed": sym, "anchor": "US_EQUITIES", "anchor_state": state,
+    # Rule from the chain's onchain Rulebook (Step 0 published Day 6).
+    onchain_rule = chain_decision(chain_id)
+    base = {"feed": sym, "chain_id": chain_id, "chain": cfg["name"],
+            "anchor": "US_EQUITIES", "anchor_state": state,
             "clock_source": clock_src,
             "as_of": now.isoformat()}
     if not feed.get("ok"):
@@ -243,8 +268,10 @@ STATE_LOCK = threading.Lock()
 
 def poll_once():
     signals = {}
-    for sym, addr in FEEDS.items():
-        signals[sym] = build_signal(sym, read_feed(addr))
+    for chain_id in CHAINS:
+        for sym, addr in FEEDS.items():
+            key = f"{chain_id}/{sym}"
+            signals[key] = build_signal(sym, read_feed(addr), chain_id)
     with STATE_LOCK:
         STATE["signals"] = signals
         STATE["last_poll"] = datetime.now(timezone.utc).isoformat()
@@ -253,9 +280,7 @@ def poll_once():
         json.dump({"generated_at": STATE["last_poll"], "signals": signals},
                   f, indent=2)
     ok = sum(1 for s in signals.values() if s["reason"] not in ("FEED_UNAVAILABLE",))
-    print(f"[{STATE['last_poll']}] polled: "
-          + ", ".join(f"{s}={signals[s]['action']}/{signals[s]['reason']}" for s in signals)
-          + f" ({ok}/{len(signals)} feeds ok)", flush=True)
+    print(f"[{STATE['last_poll']}] polled {ok}/{len(signals)} ok", flush=True)
 
 
 def poll_loop():
@@ -288,15 +313,23 @@ class Handler(BaseHTTPRequestHandler):
             last_poll = STATE["last_poll"]
         if self.path == "/health":
             return self._send(200, {"ok": True, "last_poll": last_poll,
-                                    "feeds": list(signals)})
+                                    "chains": list(CHAINS),
+                                    "feeds": list(FEEDS)})
         if self.path == "/signal":
             return self._send(200, {"generated_at": last_poll, "signals": signals})
         if self.path.startswith("/signal/"):
-            sym = self.path.rsplit("/", 1)[-1].upper()
-            if sym in signals:
-                return self._send(200, signals[sym])
-            return self._send(404, {"error": f"unknown feed: {sym}"})
-        return self._send(404, {"error": "use /signal, /signal/{AAPL|TSLA|NVDA}, /health"})
+            parts = self.path[len("/signal/"):].split("/")
+            # /signal/<chain_id>/<SYM> or /signal/<SYM> (defaults to 46630)
+            if len(parts) == 2 and parts[0] in CHAINS:
+                key = f"{parts[0]}/{parts[1].upper()}"
+            elif len(parts) == 1:
+                key = f"46630/{parts[0].upper()}"
+            else:
+                return self._send(404, {"error": f"unknown path: {self.path}"})
+            if key in signals:
+                return self._send(200, signals[key])
+            return self._send(404, {"error": f"unknown signal: {key}"})
+        return self._send(404, {"error": "use /signal, /signal/{chain}/{SYM}, /health"})
 
 
 def main():
