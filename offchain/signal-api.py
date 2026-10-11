@@ -5,8 +5,14 @@ Trisara Signal API — Dwellir pilot
 Polls Robinhood Chain Chainlink equity feeds every 60s, computes the
 session-awareness signal from the one-pager, and serves it as JSON.
 
-Signal fields per feed: anchor, anchor_state, last_live_print, staleness_sec,
-action, reason, resumes_at.
+Session state comes from the onchain AnchorClock (testnet 46630, full
+2026-27 holiday bitmaps). The action comes from the onchain Rulebook
+(testnet 46630, Step 0 rules published). Feed staleness still fails
+closed in the API. If either contract read fails, the pilot Python
+fallback (NYSE hours, hardcoded rules) is used and labelled as such.
+
+Signal fields per feed: anchor, anchor_state, clock_source, last_live_print,
+staleness_sec, action, reason, rule_param, rule_source, resumes_at.
 
 READ-ONLY. No transactions, no gas, no keys.
 
@@ -38,11 +44,25 @@ FEEDS = {
 }
 
 RH_RPCS = ["https://rpc.mainnet.chain.robinhood.com"]
+# Testnet contracts: the session clock and rulebook live here.
+# Prices come from mainnet feeds (real prints); clock + rules from testnet
+# (same bytecode that would run on mainnet).
+TESTNET_RPC = "https://rpc.testnet.chain.robinhood.com"
+ANCHOR_CLOCK = "0x7998C5B332B843da2BcCc2088eA7487C92C7f1c6"
+RULEBOOK = "0x2f8c1823bD51A71873b00eB4bc66BA6Cf76634cC"
 
 INTERVAL_SEC = 60
 DECIMALS = 8
 LATEST_ROUND_DATA = "0xfeaf968c"
 STALE_THRESHOLD_SEC = 900  # 15 min: OPEN anchor + older print = fail closed
+
+# Onchain selectors
+IS_OPEN_SIG = "0xfe4d2463"      # isOpen(uint8,uint256)
+DECISION_SIG = "0xbc5a1b04"     # decision(bytes32,uint8)
+ANCHOR_EQUITY_US = 0
+CLS_SWAP = 0
+WILDCARD_ASSET = "0x" + "00" * 32
+ACTION_NAMES = {0: "ALLOW", 1: "CAP", 2: "COLLAR", 3: "DEFER", 4: "HALT"}
 
 ET = ZoneInfo("America/New_York")
 # Pilot simplification: NYSE regular hours, holidays not modelled here.
@@ -85,7 +105,49 @@ def read_feed(feed_addr):
     return {"ok": True, "price": answer / 10**DECIMALS,
             "updatedAt": updated_at, "stalenessSec": now - updated_at}
 
-# ---------------------------------------------------------------- anchor calendar (pilot)
+# ---------------------------------------------------------------- onchain reads
+
+def _pad_u256(v):
+    return format(v, '064x')
+
+
+def _pad_addr(a):
+    return a[2:].lower().rjust(64, '0')
+
+
+def chain_is_open(now_ts):
+    """Read AnchorClock.isOpen(EQUITY_US, now) from testnet. Falls back to
+    the Python NYSE-hours calc if the RPC call fails."""
+    try:
+        data = IS_OPEN_SIG + _pad_u256(ANCHOR_EQUITY_US) + _pad_u256(now_ts)
+        resp = rpc_call(TESTNET_RPC, "eth_call",
+                        [{"to": ANCHOR_CLOCK, "data": data}, "latest"])
+        raw = resp.get("result") or ""
+        return int(raw, 16) == 1
+    except Exception:
+        return None
+
+
+def chain_decision():
+    """Read Rulebook.decision(wildcard, SWAP) from testnet.
+    Returns (action_name, param, reason) or None on failure."""
+    try:
+        data = DECISION_SIG + WILDCARD_ASSET[2:] + _pad_u256(CLS_SWAP)
+        resp = rpc_call(TESTNET_RPC, "eth_call",
+                        [{"to": RULEBOOK, "data": data}, "latest"])
+        raw = (resp.get("result") or "")[2:]
+        if len(raw) < 192:
+            return None
+        action = int(raw[0:64], 16)
+        param = int(raw[64:128], 16)
+        reason = bytes.fromhex(raw[128:192]).rstrip(b"\x00").decode(
+            "ascii", errors="replace")
+        return (ACTION_NAMES.get(action, f"ACTION_{action}"), param, reason)
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------- anchor calendar (pilot fallback)
 
 def anchor_state(now_utc=None):
     """OPEN if NYSE regular session is live, else CLOSED. Holidays not modelled (pilot)."""
@@ -113,15 +175,27 @@ def next_open(now_utc=None):
 # ---------------------------------------------------------------- signal
 
 # Pilot default rulebook (documented, venue-overridable):
+#   CLOSED                -> COLLAR / MARKET_CLOSED (bounded weekend trading;
+#                            staleness is expected when closed, not a fault)
 #   OPEN + fresh          -> ALLOW  / MARKET_OPEN
 #   OPEN + stale >= 15min -> HALT   / STALE_FEED   (fail closed)
-#   CLOSED                -> COLLAR / MARKET_CLOSED (bounded weekend trading)
 #   feed read error       -> HALT   / FEED_UNAVAILABLE (fail closed)
 
 def build_signal(sym, feed):
     now = datetime.now(timezone.utc)
-    state = anchor_state(now)
+    now_ts = int(now.timestamp())
+    # Session state from the onchain AnchorClock (full holiday bitmaps).
+    onchain_open = chain_is_open(now_ts)
+    if onchain_open is None:
+        state = anchor_state(now)  # RPC failed: pilot fallback
+        clock_src = "pilot-fallback"
+    else:
+        state = "OPEN" if onchain_open else "CLOSED"
+        clock_src = "onchain"
+    # Rule from the onchain Rulebook (Step 0 published Day 6).
+    onchain_rule = chain_decision()
     base = {"feed": sym, "anchor": "US_EQUITIES", "anchor_state": state,
+            "clock_source": clock_src,
             "as_of": now.isoformat()}
     if not feed.get("ok"):
         return {**base, "last_live_print": None, "staleness_sec": None,
@@ -134,15 +208,31 @@ def build_signal(sym, feed):
                "updated_at": datetime.fromtimestamp(
                    feed["updatedAt"], tz=timezone.utc).isoformat()},
            "staleness_sec": feed["stalenessSec"]}
-    if state == "OPEN" and feed["stalenessSec"] < STALE_THRESHOLD_SEC:
-        sig.update(action="ALLOW", reason="MARKET_OPEN",
-                   resumes_at=None)
-    elif state == "OPEN":
+    if state == "CLOSED":
+        # Session first: a stale weekend feed is expected, not a fault.
+        # Apply the CLOSED-session rule (bounded trading), not the stale-feed halt.
+        if onchain_rule is not None:
+            action, param, reason = onchain_rule
+            sig.update(action=action, reason=reason or "RULEBOOK",
+                       rule_param=param, rule_source="onchain",
+                       resumes_at=next_open(now))
+        else:
+            sig.update(action="COLLAR", reason="MARKET_CLOSED",
+                       resumes_at=next_open(now),
+                       rule_source="pilot-fallback")
+    elif feed["stalenessSec"] >= STALE_THRESHOLD_SEC:
+        # OPEN session + stale feed = real fault. Fail closed.
         sig.update(action="HALT", reason="STALE_FEED",
                    resumes_at=next_open(now))
+    elif onchain_rule is not None:
+        action, param, reason = onchain_rule
+        sig.update(action=action, reason=reason or "RULEBOOK",
+                   rule_param=param, rule_source="onchain",
+                   resumes_at=None)
     else:
-        sig.update(action="COLLAR", reason="MARKET_CLOSED",
-                   resumes_at=next_open(now))
+        # Rulebook RPC failed: pilot hardcoded fallback (documented).
+        sig.update(action="ALLOW", reason="MARKET_OPEN",
+                   resumes_at=None, rule_source="pilot-fallback")
     return sig
 
 # ---------------------------------------------------------------- service state
