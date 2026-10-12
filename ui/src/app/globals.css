@@ -1,0 +1,301 @@
+@import "tailwindcss";
+
+/* Fanfold printout. Tokens verified by scripts/contrast.mjs (text 4.5:1,
+   graphics 3:1). Starting values from the brief; ink-3 and the paper action
+   colours were darkened until every pair, including the change flash on the
+   band colour, passed. */
+@theme {
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --color-fanfold: #F1F5EC;
+  --color-bar: #DDE8D3;
+  --color-rule: #C3D1B7;
+  --color-ink: #0F241B;
+  --color-ink-2: #3D5247;
+  --color-ink-3: #526359;
+  --color-ribbon: #2A35E0;
+
+  --color-platen: #0A1812;
+  --color-platen-band: #11231A;
+  --color-platen-rule: #26392F;
+  --color-platen-text: #E6EFE0;
+  --color-platen-dim: #9DB3A5;
+  --color-phosphor: #E3A008;
+  --color-ribbon-t: #A9AEFF;
+
+  /* Actions on paper */
+  --color-allow: #166C4A;
+  --color-cap: #0A666C;
+  --color-collar: #6B3FA0;
+  --color-defer: #8C5000;
+  --color-halt: #B12C1A;
+
+  /* Actions on the terminal */
+  --color-allow-t: #5FD3A6;
+  --color-cap-t: #5FCFD6;
+  --color-collar-t: #BBA2F2;
+  --color-defer-t: #F0B35A;
+  --color-halt-t: #FF8A70;
+
+  --font-mono: "Martian Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-sans: "Schibsted Grotesk Variable", system-ui, sans-serif;
+
+  --radius-window: 10px;
+  --radius-button: 6px;
+}
+
+/* ------------------------------------------------------------------ base */
+
+@layer base {
+  html {
+    background: var(--color-fanfold);
+    color: var(--color-ink);
+    scroll-padding-top: 72px;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.55;
+    font-optical-sizing: auto;
+  }
+  @media (min-width: 768px) {
+    body { font-size: 16px; }
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-mono);
+    font-stretch: 87.5%;
+    color: var(--color-ink);
+    text-wrap: balance;
+  }
+  h1 {
+    font-size: clamp(28px, 4.6vw, 56px);
+    font-weight: 600;
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+  }
+  h2 {
+    font-size: clamp(26px, 3.2vw, 34px);
+    font-weight: 600;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+  h3 {
+    font-size: 19px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  a { color: var(--color-ribbon); text-underline-offset: 3px; }
+  a:hover { text-decoration-thickness: 2px; }
+  code, pre, kbd, samp { font-family: var(--font-mono); }
+  ::selection { background: var(--color-bar); color: var(--color-ink); }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ribbon);
+    outline-offset: 2px;
+  }
+  /* Ribbon blue reads 2:1 on the platen; the terminal uses its light variant. */
+  .on-platen :focus-visible { outline-color: var(--color-ribbon-t); }
+
+  summary { cursor: pointer; }
+  button { cursor: pointer; }
+  button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
+}
+
+/* ------------------------------------------------------------------ utilities */
+
+@utility data {
+  font-family: var(--font-mono);
+  font-stretch: 87.5%;
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-size: 12.5px;
+  line-height: 1.5;
+  @media (min-width: 768px) { font-size: 13px; }
+}
+
+@utility tnum {
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+
+@utility prose-col {
+  max-width: 64ch;
+}
+
+@utility sr-only-focusable {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  &:focus, &:focus-visible {
+    position: fixed;
+    left: 12px;
+    top: 12px;
+    width: auto;
+    height: auto;
+    clip-path: none;
+    z-index: 100;
+    padding: 10px 14px;
+    background: var(--color-ink);
+    color: var(--color-fanfold);
+    border-radius: var(--radius-button);
+  }
+}
+
+/* Touch targets: at least 44px on coarse pointers. */
+@utility tap {
+  @media (pointer: coarse) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* ------------------------------------------------------------------ dimming
+   Stale or late data steps every text colour down one level instead of using
+   opacity, so dimmed text keeps 4.5:1. */
+.is-dim {
+  --color-ink: #3D5247;
+  --color-ink-2: #526359;
+  --color-platen-text: #9DB3A5;
+  color: var(--color-ink);
+}
+.on-platen .is-dim { color: var(--color-platen-text); }
+
+/* ------------------------------------------------------------------ skeletons */
+.skel {
+  display: inline-block;
+  height: 0.8em;
+  vertical-align: -0.05em;
+  border-radius: 2px;
+  background: var(--color-rule);
+}
+.on-platen .skel { background: var(--color-platen-rule); }
+
+/* ------------------------------------------------------------------ motion 1: boot print */
+@keyframes print-line {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+.print-row > * {
+  animation: print-line 420ms steps(18, end) both;
+  animation-delay: inherit;
+}
+
+/* ------------------------------------------------------------------ motion 3: change flash */
+@keyframes phosphor-flash {
+  from { background-color: color-mix(in srgb, var(--color-phosphor) 18%, transparent); }
+  to { background-color: transparent; }
+}
+.flash { animation: phosphor-flash 600ms ease-out; }
+
+/* ------------------------------------------------------------------ motion 6: status dots */
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.dot-pulse { animation: dot-pulse 2s ease-in-out infinite; }
+
+/* ------------------------------------------------------------------ odometer */
+.odo-digit {
+  display: inline-block;
+  height: 1.5em;
+  overflow: hidden;
+  vertical-align: top;
+}
+.odo-strip {
+  display: flex;
+  flex-direction: column;
+  transition: transform 520ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.odo-strip > span { height: 1.5em; line-height: 1.5em; }
+
+/* ------------------------------------------------------------------ nav mark */
+.mark-wheel { transition: transform 260ms cubic-bezier(0.3, 1.6, 0.5, 1); transform-origin: 50% 50%; }
+
+/* ------------------------------------------------------------------ pipeline */
+.edge-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+.edge-draw.is-drawn {
+  animation: edge-draw 360ms ease-out forwards;
+  animation-delay: var(--delay, 0ms);
+}
+@keyframes edge-draw { to { stroke-dashoffset: 0; } }
+.edge-fade { opacity: 0; }
+.edge-fade.is-drawn { animation: edge-fade 360ms ease-out forwards; animation-delay: var(--delay, 0ms); }
+@keyframes edge-fade { to { opacity: 1; } }
+
+/* ------------------------------------------------------------------ bars and timeline */
+.grow-x {
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+.grow-x.is-grown {
+  transition: transform 900ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  transform: scaleX(1);
+}
+.reveal-x { clip-path: inset(0 100% 0 0); }
+.reveal-x.is-grown {
+  transition: clip-path 1200ms cubic-bezier(0.3, 0.6, 0.2, 1);
+  clip-path: inset(0 0 0 0);
+}
+
+/* ------------------------------------------------------------------ tooltip */
+.tip { position: relative; }
+.tip-body {
+  position: absolute;
+  z-index: 40;
+  left: 0;
+  bottom: calc(100% + 6px);
+  width: max-content;
+  max-width: min(320px, calc(100vw - 48px));
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--color-ink);
+  color: var(--color-fanfold);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 400;
+  font-stretch: 100%;
+  white-space: normal;
+  text-align: left;
+  pointer-events: none;
+  display: none;
+}
+.tip-body[data-side="bottom"] { bottom: auto; top: calc(100% + 6px); }
+.tip-body[data-align="end"] { left: auto; right: 0; }
+.tip:hover > .tip-body, .tip:focus-within > .tip-body { display: block; }
+.on-platen .tip-body { background: var(--color-platen-text); color: var(--color-platen); }
+
+/* ------------------------------------------------------------------ sprocket rail */
+.sprocket {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 24px;
+  z-index: 5;
+  pointer-events: none;
+  border-right: 1px dashed var(--color-rule);
+}
+
+/* ------------------------------------------------------------------ reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .print-row > * { animation: none; }
+  .dot-pulse { animation: none; }
+  .flash { animation: none; outline: 1px solid var(--color-phosphor); outline-offset: -1px; }
+  .odo-strip, .mark-wheel { transition: none; }
+  .edge-draw, .edge-draw.is-drawn { animation: none; stroke-dasharray: none; stroke-dashoffset: 0; }
+  .edge-fade, .edge-fade.is-drawn { animation: none; opacity: 1; }
+  .grow-x, .grow-x.is-grown { transition: none; transform: none; }
+  .reveal-x, .reveal-x.is-grown { transition: none; clip-path: none; }
+  html { scroll-behavior: auto; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
