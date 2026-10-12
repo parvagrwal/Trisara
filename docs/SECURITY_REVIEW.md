@@ -3,7 +3,7 @@
 **Date:** 2026-10-10
 **Scope:** `src/consumers/` (GuardedSwapRouter, GuardedLender, GuardedSettlementRouter + unguarded twins + ProtectionBilling), `src/adapters/` (ReferenceFeedAdapter, LivenessAdapter), deployment wiring on RH testnet 46630.
 **Out of scope:** Day-2 core (AnchorClock, PriceIntegrity, Rulebook, GuardedFeed, QuorumFlagger) — reviewed Day 2, 72 tests green. `src/testnet/` helpers are testnet-only by design.
-**Method:** Manual code read against the Day-6 checklist (reentrancy, CEI, oracle manipulation, donation/inflation, decimals, tighten-only). No external audit.
+**Method:** Manual code read against the Day-6 checklist (reentrancy, CEI, oracle manipulation, donation/inflation, decimals, tighten-only). Automated Slither scan on 2026-10-12: 0 high-severity findings (see [audits/SLITHER_SUMMARY.md](audits/SLITHER_SUMMARY.md)). No formal external audit yet — required before mainnet.
 
 ## Findings
 

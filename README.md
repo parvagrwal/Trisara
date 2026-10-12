@@ -1,66 +1,60 @@
-## Foundry
+# Trisara
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+**Real-world assets came onchain without their clocks. Trisara is the escapement.**
 
-Foundry consists of:
+Trisara is session-aware infrastructure for tokenized stocks. Every trade checks the market session before it executes — no more liquidations on stale weekend prices, no more swaps at Monday's open using Friday's close.
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+Built for [Colosseum Crypto World's Fair](https://colosseum.com). Tracks: Tempo, Hyperliquid, Robinhood Chain.
 
-## Documentation
+## How it works
 
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
-
-```shell
-$ forge build
+```
+Guarded Router → GuardedFeed → PriceIntegrity → AnchorClock
 ```
 
-### Test
+- **AnchorClock** — onchain market calendar (NYSE hours + 2026-27 holiday bitmaps)
+- **PriceIntegrity** — validates prices against session state
+- **GuardedFeed** — session-aware price feed (collar/defer/halt when closed)
+- **Rulebook** — standalone venue contract for custom session rules
+- **Guarded routers/lender** — swap, borrow, and settlement with session enforcement
 
-```shell
-$ forge test
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full call paths.
+
+## Contracts
+
+Deployed on three testnets:
+
+| Chain | Chain ID | Core contracts |
+|-------|----------|----------------|
+| Robinhood Chain | 46630 | AnchorClock, GuardedFeed, Rulebook, GuardedSwapRouter |
+| HyperEVM | 998 | AnchorClock, GuardedFeed, Rulebook, GuardedLender |
+| Tempo | 42431 | AnchorClock, GuardedFeed, Rulebook, GuardedSettlementRouter |
+
+## Tests
+
+```bash
+forge test
 ```
 
-### Format
+128 tests, 0 failed. Slither scan: 0 high-severity findings ([report](docs/audits/SLITHER_SUMMARY.md)).
 
-```shell
-$ forge fmt
-```
+## Backend services
 
-### Gas Snapshots
+Live and monitored:
 
-```shell
-$ forge snapshot
-```
+| Service | URL | Source |
+|---------|-----|--------|
+| Indexer | https://trisara-indexer.onrender.com | `indexer/` |
+| Signal API | https://trisara-signal-api.onrender.com | `offchain/signal-api.py` |
 
-### Anvil
+See [DEPLOYED.md](DEPLOYED.md) for endpoints. See [indexer/RUNBOOK.md](indexer/RUNBOOK.md) to run locally.
 
-```shell
-$ anvil
-```
+## Docs
 
-### Deploy
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — onchain call paths
+- [docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md) — security review
+- [docs/audits/SLITHER_SUMMARY.md](docs/audits/SLITHER_SUMMARY.md) — automated audit
 
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
+## License
 
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+MIT

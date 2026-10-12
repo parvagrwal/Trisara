@@ -1,43 +1,48 @@
-# Weekend-1 Logger
+# Offchain Services
 
-Read-only price watcher for the Oct 3–5 weekend. No transactions, no gas, no keys.
+Read-only. No transactions, no gas, no keys.
 
-## Run
+## Signal API (`signal-api.py`)
+
+Session-aware price signals for AAPL, TSLA, NVDA across all 3 testnets.
+
+```bash
+python offchain/signal-api.py --port 8080
+```
+
+**Live:** https://trisara-signal-api.onrender.com
+
+Endpoints:
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /signal` | All signals (all chains × all feeds) |
+| `GET /signal/{chain_id}/{SYMBOL}` | e.g. `/signal/46630/AAPL` |
+| `GET /signal/{SYMBOL}` | Defaults to Robinhood Chain (46630) |
+| `GET /health` | Service status |
+
+**Logic:** session is checked first, staleness second.
+- CLOSED + stale → COLLAR (staleness is normal on weekends)
+- OPEN + stale ≥15min → HALT (real fault, fail closed)
+- Feed error → HALT
+
+Each signal reads the chain's onchain `AnchorClock` and `Rulebook`. Falls back to
+pilot NYSE-hours logic if RPC fails (labelled `pilot-fallback`).
+
+## Weekend Loggers
+
+Historical price capture scripts. See git history for weekend-1 (Oct 3–5) and
+weekend-2 (Oct 10–12) capture windows.
+
+### Weekend-1 Logger (`weekend1-logger.py`)
+
+Read-only price watcher for the Oct 3–5 weekend.
 
 ```bash
 cd ~/Trisara
 python offchain/weekend1-logger.py
 ```
 
-Leave it running. Stop with Ctrl+C. To run in the background (Git Bash):
+Output: `offchain/logs/weekend1-YYYYMMDD.jsonl` — one JSON object per line, every 60s.
 
-```bash
-nohup python offchain/weekend1-logger.py > offchain/logs/logger.out 2>&1 &
-```
-
-## Output
-
-`offchain/logs/weekend1-YYYYMMDD.jsonl` — one JSON object per line, every 60s:
-
-```json
-{
-  "ts": "2026-10-03T10:00:00+00:00",
-  "robinhood": {
-    "AAPL": {"ok": true, "price": 335.4773, "updatedAt": 1790959180, "stalenessSec": 61200, ...},
-    "TSLA": {...},
-    "NVDA": {...}
-  },
-  "hyperliquid": {"ok": true, "mids": {"BTC": "97012.5", ...}}
-}
-```
-
-## What to look for Monday
-
-- `stalenessSec` growing all weekend on the Chainlink feeds = the thesis, measured.
-- Any Monday-reopen jump between the stale feed price and live pool/perp prices.
-- This file feeds the incident replay harness and the final report.
-
-## Notes
-
-- Feed decimals hardcoded to 8 (verified via `decimals()` on all three feeds, 2026-10-03). Raw values also logged.
-- RPC failover: add a secondary Robinhood RPC to `RH_RPCS` in the script when available.
+Feed decimals hardcoded to 8 (verified via `decimals()` on all three feeds, 2026-10-03).
