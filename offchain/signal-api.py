@@ -319,6 +319,10 @@ class Handler(BaseHTTPRequestHandler):
         with STATE_LOCK:
             signals = dict(STATE["signals"])
             last_poll = STATE["last_poll"]
+        if self.path == "/":
+            return self._send(200, {"service": "trisara-signal-api",
+                                    "endpoints": ["/signal", "/signal/{chain_id}/{SYM}",
+                                                  "/signal/{SYM}", "/health"]})
         if self.path == "/health":
             return self._send(200, {"ok": True, "last_poll": last_poll,
                                     "chains": list(CHAINS),

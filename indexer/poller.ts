@@ -124,17 +124,20 @@ async function pollChain(chainId: keyof typeof CHAINS): Promise<ChainResult> {
 
   try {
     const client = clientFor(chainId);
-    const now = BigInt(Math.floor(Date.now() / 1000));
 
-    const [block, open] = await Promise.all([
-      client.getBlockNumber(),
-      client.readContract({
-        address: cfg.clock,
-        abi: CLOCK_ABI,
-        functionName: "isOpen",
-        args: [ANCHOR_EQUITY_US, now],
-      }),
-    ]);
+    // Use chain time (block timestamp), not server wall-clock, so the
+    // clock evaluation reflects what the chain sees. A halted testnet
+    // will show a stale timestamp instead of looking healthy.
+    const block = await client.getBlockNumber();
+    const blockData = await client.getBlock({ blockNumber: block });
+    const now = blockData.timestamp;
+
+    const open = await client.readContract({
+      address: cfg.clock,
+      abi: CLOCK_ABI,
+      functionName: "isOpen",
+      args: [ANCHOR_EQUITY_US, now],
+    });
 
     const rules: Record<string, unknown> = {};
     for (let cls = 0; cls < CLASS_NAMES.length; cls++) {
@@ -160,6 +163,7 @@ async function pollChain(chainId: keyof typeof CHAINS): Promise<ChainResult> {
       healthy: true,
       latencyMs: Date.now() - started,
       block: block.toString(),
+      blockTimestamp: now.toString(),
       clock: { open, anchor: "EQUITY_US", at: now.toString() },
       rules,
     };

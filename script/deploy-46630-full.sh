@@ -91,7 +91,7 @@ jadd GuardedFeed "$GF"
 # ---- swap ----
 GSR=$(deploy "GuardedSwapRouter" \
   "src/consumers/GuardedSwapRouter.sol:GuardedSwapRouter" \
-  "$SWAPFEED" "$RUSDG" "$TSLA" 500 "$DEPLOYER" $PX_TSLA_PER_RUSDG)
+  "$GF" "$RUSDG" "$TSLA" 500 "$DEPLOYER" $PX_TSLA_PER_RUSDG)
 jadd GuardedSwapRouter "$GSR"
 USR=$(deploy "UnguardedSwapRouter" \
   "src/consumers/GuardedSwapRouter.sol:UnguardedSwapRouter" \

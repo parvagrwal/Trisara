@@ -1,0 +1,101 @@
+{
+  "ts": "2026-10-10T08:28:44.585Z",
+  "chains": {
+    "998": {
+      "chainId": "998",
+      "name": "HyperEVM",
+      "block": "66515985",
+      "clock": {
+        "open": false,
+        "anchor": "EQUITY_US",
+        "at": "1791620924"
+      },
+      "rules": {
+        "SWAP": {
+          "action": "COLLAR",
+          "param": "500",
+          "reason": "STEP0"
+        },
+        "BORROW": {
+          "action": "CAP",
+          "param": "1000",
+          "reason": "STEP0"
+        },
+        "LIQUIDATE": {
+          "action": "DEFER",
+          "param": "3600",
+          "reason": "STEP0"
+        },
+        "SETTLE": {
+          "action": "COLLAR",
+          "param": "500",
+          "reason": "STEP0"
+        }
+      }
+    },
+    "42431": {
+      "chainId": "42431",
+      "name": "Tempo",
+      "block": "38965776",
+      "clock": {
+        "open": false,
+        "anchor": "EQUITY_US",
+        "at": "1791620925"
+      },
+      "rules": {
+        "SWAP": {
+          "action": "COLLAR",
+          "param": "500",
+          "reason": "STEP0"
+        },
+        "BORROW": {
+          "action": "CAP",
+          "param": "1000",
+          "reason": "STEP0"
+        },
+        "LIQUIDATE": {
+          "action": "DEFER",
+          "param": "3600",
+          "reason": "STEP0"
+        },
+        "SETTLE": {
+          "action": "COLLAR",
+          "param": "500",
+          "reason": "STEP0"
+        }
+      }
+    },
+    "46630": {
+      "chainId": "46630",
+      "name": "Robinhood",
+      "block": "132149563",
+      "clock": {
+        "open": false,
+        "anchor": "EQUITY_US",
+        "at": "1791620927"
+      },
+      "rules": {
+        "SWAP": {
+          "action": "COLLAR",
+          "param": "500",
+          "reason": "STEP0"
+        },
+        "BORROW": {
+          "action": "CAP",
+          "param": "1000",
+          "reason": "STEP0"
+        },
+        "LIQUIDATE": {
+          "action": "DEFER",
+          "param": "3600",
+          "reason": "STEP0"
+        },
+        "SETTLE": {
+          "action": "COLLAR",
+          "param": "500",
+          "reason": "STEP0"
+        }
+      }
+    }
+  }
+}

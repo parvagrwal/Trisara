@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 2,
+  "ts": "2026-10-11T22:29:09.367Z",
+  "chains": {
+    "998": {
+      "chainId": "998",
+      "name": "HyperEVM",
+      "polledAt": "2026-10-11T22:29:09.369Z",
+      "healthy": true,
+      "latencyMs": 1586,
+      "block": "66655089",
+      "clock": {
+        "open": false,
+        "anchor": "EQUITY_US",
+        "at": "1791757749"
+      },
+      "rules": {
+        "SWAP": {
+          "action": "COLLAR",
+          "param": "500",
+          "reason": "STEP0"
+        },
+        "BORROW": {
+          "action": "CAP",
+          "param": "1000",
+          "reason": "STEP0"
+        },
+        "LIQUIDATE": {
+          "action": "DEFER",
+          "param": "3600",
+          "reason": "STEP0"
+        },
+        "SETTLE": {
+          "action": "COLLAR",
+          "param": "500",
+          "reason": "STEP0"
+        }
+      }
+    },
+    "42431": {
+      "chainId": "42431",
+      "name": "Tempo",
+      "polledAt": "2026-10-11T22:29:09.450Z",
+      "healthy": true,
+      "latencyMs": 2584,
+      "block": "39188721",
+      "clock": {
+        "open": false,
+        "anchor": "EQUITY_US",
+        "at": "1791757749"
+      },
+      "rules": {
+        "SWAP": {
+          "action": "COLLAR",
+          "param": "500",
+          "reason": "STEP0"
+        },
+        "BORROW": {
+          "action": "CAP",
+          "param": "1000",
+          "reason": "STEP0"
+        },
+        "LIQUIDATE": {
+          "action": "DEFER",
+          "param": "3600",
+          "reason": "STEP0"
+        },
+        "SETTLE": {
+          "action": "COLLAR",
+          "param": "500",
+          "reason": "STEP0"
+        }
+      }
+    },
+    "46630": {
+      "chainId": "46630",
+      "name": "Robinhood",
+      "polledAt": "2026-10-11T22:29:09.452Z",
+      "healthy": true,
+      "latencyMs": 2582,
+      "block": "133205457",
+      "clock": {
+        "open": false,
+        "anchor": "EQUITY_US",
+        "at": "1791757749"
+      },
+      "rules": {
+        "SWAP": {
+          "action": "COLLAR",
+          "param": "500",
+          "reason": "STEP0"
+        },
+        "BORROW": {
+          "action": "CAP",
+          "param": "1000",
+          "reason": "STEP0"
+        },
+        "LIQUIDATE": {
+          "action": "DEFER",
+          "param": "3600",
+          "reason": "STEP0"
+        },
+        "SETTLE": {
+          "action": "COLLAR",
+          "param": "500",
+          "reason": "STEP0"
+        }
+      }
+    }
+  }
+}

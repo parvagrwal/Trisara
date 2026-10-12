@@ -1,0 +1,35 @@
+{
+  "chainId": "46630",
+  "name": "Robinhood",
+  "polledAt": "2026-10-11T22:29:09.452Z",
+  "healthy": true,
+  "latencyMs": 2582,
+  "block": "133205457",
+  "clock": {
+    "open": false,
+    "anchor": "EQUITY_US",
+    "at": "1791757749"
+  },
+  "rules": {
+    "SWAP": {
+      "action": "COLLAR",
+      "param": "500",
+      "reason": "STEP0"
+    },
+    "BORROW": {
+      "action": "CAP",
+      "param": "1000",
+      "reason": "STEP0"
+    },
+    "LIQUIDATE": {
+      "action": "DEFER",
+      "param": "3600",
+      "reason": "STEP0"
+    },
+    "SETTLE": {
+      "action": "COLLAR",
+      "param": "500",
+      "reason": "STEP0"
+    }
+  }
+}
