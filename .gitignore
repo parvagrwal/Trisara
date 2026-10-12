@@ -5,3 +5,8 @@ offchain/logs/
 .env
 *.key
 signal/
+node_modules/
+__pycache__/
+*.pyc
+indexer/state/
+.DS_Store

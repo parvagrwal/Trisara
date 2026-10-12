@@ -255,8 +255,9 @@ def build_signal(sym, feed, chain_id="46630"):
                    rule_param=param, rule_source="onchain",
                    resumes_at=None)
     else:
-        # Rulebook RPC failed: pilot hardcoded fallback (documented).
-        sig.update(action="ALLOW", reason="MARKET_OPEN",
+        # Rulebook RPC failed: fail closed. Never ALLOW when the rules
+        # are unreadable.
+        sig.update(action="HALT", reason="RULEBOOK_UNREADABLE",
                    resumes_at=None, rule_source="pilot-fallback")
     return sig
 
